@@ -2,10 +2,22 @@ import Client  from './client/client.js';
 
 let client;
 
+const defaultServerURL = 'localhost:8000';
+
+function randomUserID() {
+    return Math.random().toString(36).substring(7);
+}
+
 async function initializeClient() {
     if (!client) {
-        const serverURL = document.getElementById('server_url').value;
-        const userID = document.getElementById('user_id').value;
+        let serverURL = document.getElementById('server_url').value;
+        if (serverURL==='') {
+            serverURL=defaultServerURL;
+        }
+        let userID = document.getElementById('user_id').value;
+        if (userID==='') {
+            userID=randomUserID();
+        }
         const channelID = document.getElementById('channel_id').value;
         const video= document.getElementById('video');
         client = new Client(serverURL, userID, channelID, video);

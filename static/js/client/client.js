@@ -15,7 +15,6 @@ export default class Client {
         this.socket = null;
         this.requestId = 0;
         this.pendingRequests = {};
-        this.messageHandlers = {};
         this.mediaStream = null;
     }
 
@@ -29,18 +28,11 @@ export default class Client {
 
             this.socket.onmessage = (message) => {
                 const data = JSON.parse(message.data);
-                const requestId = data.RequestID;
+                const requestId = data.request_id;
 
                 if (requestId && this.pendingRequests[requestId]) {
                     this.pendingRequests[requestId](data);
                     delete this.pendingRequests[requestId];
-                } else {
-                    const type = data.Type;
-                    if (this.messageHandlers[type]) {
-                        this.messageHandlers[type](data);
-                    } else {
-                        console.warn("Unhandled message type:", type);
-                    }
                 }
             };
         });
@@ -49,20 +41,19 @@ export default class Client {
     send(data) {
         return new Promise((resolve, reject) => {
             const requestId = ++this.requestId;
-            data.RequestID = requestId;
+            data.request_id = requestId;
 
             this.pendingRequests[requestId] = resolve;
-
             this.socket.send(JSON.stringify(data));
         });
     }
 
     async activate() {
         const activatePayload = {
-            ChannelID: this.channelID,
-            UserID: this.userID
+            channel_id: this.channelID,
+            user_id: this.userID
         };
-        await this.send(activatePayload);
+        await this.send(activatePayload).then(console.log);
     }
 
     async Push(mediaStream) {
@@ -86,16 +77,16 @@ export default class Client {
             await connection.setLocalDescription(offer);
             console.log("Generated Offer SDP:", offer.sdp);
 
-            const response = await this.send({
-                Type: MESSAGE_TYPES.PUSH,
-                SDP: offer.sdp
-            });
-
-            await connection.setRemoteDescription(new RTCSessionDescription({
-                type: 'answer',
-                sdp: response.SDP
-            }));
-
+            await this.send({
+                type: MESSAGE_TYPES.PUSH,
+                sdp: offer.sdp
+            }).then(async (response) => {
+                console.log("Response:", response);
+                await connection.setRemoteDescription(new RTCSessionDescription({
+                    type: 'answer',
+                    sdp: response.sdp
+                }));
+            })
             console.log("Push completed");
         } catch (error) {
             console.error("Error in Push:", error);
@@ -104,7 +95,16 @@ export default class Client {
 
     async Pull() {
         try {
-            const connection = new RTCPeerConnection();
+            const connection = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            });
+            connection.addTransceiver('video');
+
+            connection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    const offer =  connection.createOffer();
+                }
+            };
 
             connection.ontrack = (event) => {
                 this.video.srcObject = event.streams[0];
@@ -114,16 +114,17 @@ export default class Client {
 
             const offer = await connection.createOffer();
             await connection.setLocalDescription(offer);
+            console.log("Generated Offer SDP:", offer.sdp);
 
-            const response = await this.send({
+            await this.send({
                 Type: MESSAGE_TYPES.PULL,
-                SDP: offer.sdp
-            });
-
-            await connection.setRemoteDescription(new RTCSessionDescription({
-                type: 'answer',
-                sdp: response.SDP
-            }));
+                sdp: offer.sdp
+            }).then(async (response) => {
+                await connection.setRemoteDescription(new RTCSessionDescription({
+                    type: 'answer',
+                    sdp: response.sdp
+                }));
+            })
         } catch (error) {
             console.error("Error in Pull:", error);
         }
