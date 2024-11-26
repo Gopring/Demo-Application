@@ -147,6 +147,24 @@ export default class Client {
 
             // ICE Gathering 완료 플래그
             let isIceGatheringComplete = false;
+            connection.ontrack = (event) => {
+                console.log("Received track event:", event);
+
+                // 기존의 streams 배열 대신 개별 트랙 사용
+                const track = event.track;
+
+                // 기존에 사용할 MediaStream이 없으면 새로 생성
+                if (!this.mediaStream) {
+                    this.mediaStream = new MediaStream(); // MediaStream 객체 생성
+                }
+                // MediaStream에 트랙 추가
+                this.mediaStream.addTrack(track);
+                // Video Element에 MediaStream 설정
+                this.video.srcObject = this.mediaStream;
+                this.video.autoplay = true;
+                this.video.controls = true;
+                console.log("MediaStream updated with track:", this.mediaStream);
+            };
 
             connection.onicecandidate = (event) => {
                 if (!event.candidate) {
@@ -159,11 +177,6 @@ export default class Client {
                 }
             };
 
-            connection.ontrack = (event) => {
-                this.video.srcObject = event.streams[0];
-                this.video.autoplay = true;
-                this.video.controls = true;
-            };
 
             // Offer 생성 및 설정
             const offer = await connection.createOffer();
