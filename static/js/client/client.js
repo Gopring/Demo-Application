@@ -21,7 +21,7 @@ export default class Client {
 
     async dial() {
         return new Promise((resolve, reject) => {
-            this.socket = new WebSocket(`ws://${this.serverURL}/ws`);
+            this.socket = new WebSocket(`${this.serverURL}`);
 
             this.socket.onopen = () => resolve();
 

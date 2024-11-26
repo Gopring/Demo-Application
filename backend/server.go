@@ -2,6 +2,7 @@ package backend
 
 import (
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 )
@@ -21,12 +22,36 @@ func New(c Config) *Backend {
 	return b
 }
 
+//func (b *Backend) routes() {
+//	fs := http.FileServer(http.Dir("./static"))
+//	b.mux.Handle("/", http.StripPrefix("/", fs))
+//
+//	b.mux.HandleFunc("/html", func(w http.ResponseWriter, r *http.Request) {
+//		http.ServeFile(w, r, "./static/demo.html")
+//	})
+//}
+
 func (b *Backend) routes() {
 	fs := http.FileServer(http.Dir("./static"))
-	b.mux.Handle("/", http.StripPrefix("/", fs))
+	b.mux.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	b.mux.HandleFunc("/html", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "./static/demo.html")
+	b.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		tmpl, err := template.ParseFiles("static/demo.html")
+		if err != nil {
+			http.Error(w, "Unable to load template", http.StatusInternalServerError)
+			return
+		}
+
+		// SignalServerURL 도메인만 전달
+		data := struct {
+			SignalServerURL string
+		}{
+			SignalServerURL: b.config.SignalServerURL, // ex: "localhost:8080"
+		}
+
+		if err := tmpl.Execute(w, data); err != nil {
+			http.Error(w, "Unable to render template", http.StatusInternalServerError)
+		}
 	})
 }
 

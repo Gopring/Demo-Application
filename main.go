@@ -17,6 +17,7 @@ func cmd(w io.Writer, args []string) (backend.Config, error) {
 	fs.IntVar(&con.Port, "port", 3000, "listening port")
 	fs.StringVar(&con.KeyFile, "key", "", "key file path")
 	fs.StringVar(&con.CertFile, "cert", "", "cert file path")
+	fs.StringVar(&con.SignalServerURL, "SignalServerURL", "", "signal server url")
 	err := fs.Parse(args)
 	if err != nil {
 		return backend.Config{}, fmt.Errorf("failed to parse args: %w", err)
