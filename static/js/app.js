@@ -28,27 +28,30 @@ async function getMediaStream() {
     return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
 }
 
-
-document.getElementById('activate').addEventListener('click', async () => {
+async function init(){
     await initializeClient();
     await client.dial();
     await client.activate();
     console.log("Client initialized");
-});
+}
 
 document.getElementById('push').addEventListener('click', async () => {
+    await init();
     const stream = await getMediaStream();
     await client.Push(stream);
 });
 
 document.getElementById('pull').addEventListener('click', async () => {
+    await init();
     await client.Pull();
 });
 
 document.getElementById('fetch').addEventListener('click', async () => {
+    await init();
     await client.Fetch();
 });
 
 document.getElementById('forward').addEventListener('click', async () => {
+    await init();
     await client.Forward();
 });
