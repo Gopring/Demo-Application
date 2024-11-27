@@ -1,55 +1,45 @@
 <!DOCTYPE html>
-<html lang="es-ES">
+<html lang="en">
 <head>
-  <title>WebRTC Broadcaster & Viewer</title>
-  <link rel="stylesheet" type="text/css" href="assets/styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebRTC Project</title>
+  <link rel="stylesheet" type="text/css" href="static/assets/styles.css"> <!-- Link to a CSS file for styling -->
 </head>
 <body>
-<h1>WebRTC Broadcaster & Viewer</h1>
+<div class="container">
+  <!-- Video Display -->
+  <div class="video-container">
+    <video id="video" autoplay></video>
+  </div>
 
-<label for="userIdInput">Enter your ID:</label>
-<input type="text" id="userIdInput" placeholder="Enter your ID">
-<br>
+  <!-- Input Fields -->
+  <div class="inputs">
+<!--    <input type="text" id="server_url" placeholder="Server URL">-->
+    <input type="text" id="user_id" placeholder="User ID">
+    <input type="text" id="channel_id" placeholder="Channel ID">
+  </div>
 
-<!--<label for="userNameInput">Enter your Name:</label>-->
-<!--<input type="text" id="userNameInput" placeholder="Enter your Name">-->
-<!--<br>-->
+  <!-- Control Buttons -->
+  <div class="buttons">
+    <button id="push">Push</button>
+    <button id="pull">Pull</button>
+    <button id="forward">Forward</button>
+    <button id="fetch">Fetch</button>
+<!--    <button id="reconnect">Reconnect</button>-->
+  </div>
+</div>
+<script>
+  const SignalServerBaseURL = "{{ .SignalServerURL }}";
 
-<label for="channelIdInput">Enter Channel ID:</label>
-<input type="text" id="channelIdInput" placeholder="Enter Channel ID">
-<br>
+  const SignalServerProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+  const SignalServerURL = `${SignalServerProtocol}://${SignalServerBaseURL}/ws`;
+  window.SignalServerURL = SignalServerURL;
+  console.log("SignalServerURL set in HTML:", SignalServerURL);
+</script>
 
-<!--<label for="channelNameInput">Enter Channel Name:</label>-->
-<!--<input type="text" id="channelNameInput" placeholder="Enter Channel Name">-->
-<!--<br>-->
-
-<label for="baseUrlInput">Enter Base URL:</label>
-<input type="text" id="baseUrlInput" placeholder="Enter Base URL (default: http://localhost:8080)">
-<br>
-
-<video id="videoElement" autoplay playsinline></video>
-<br>
-<button id="startBroadcast">Start Broadcast</button>
-<button id="startView">Start Viewing</button>
-
-<script type="module">
-  import { startBroadcast } from './js/broadcast/broadcast.js';
-  import { startView } from './js/view/view.js';
-  import { setBaseUrl } from './js/utils/utils.js';
-
-  const startBroadcastButton = document.getElementById('startBroadcast');
-  const startViewButton = document.getElementById('startView');
-  const baseUrlInput = document.getElementById('baseUrlInput');
-
-  startBroadcastButton.onclick = startBroadcast;
-  startViewButton.onclick = startView;
-
-  baseUrlInput.onchange = () => {
-    const newBaseUrl = baseUrlInput.value;
-    if (newBaseUrl) {
-      setBaseUrl(newBaseUrl);
-    }
-  };
+<script type="module"  src="static/js/app.js">
+  await import('/static/js/app.js');
 </script>
 </body>
 </html>
