@@ -43,12 +43,3 @@ document.getElementById('pull').addEventListener('click', async () => {
     await client.Pull();
 });
 
-document.getElementById('fetch').addEventListener('click', async () => {
-    await init();
-    await client.Fetch();
-});
-
-document.getElementById('forward').addEventListener('click', async () => {
-    await init();
-    await client.Forward();
-});

@@ -1,4 +1,5 @@
 const MESSAGE_TYPES = {
+    ACTIVATE: 'ACTIVATE',
     PULL: 'PULL',
     PUSH: 'PUSH',
     FORWARD: 'FORWARD',
@@ -47,13 +48,14 @@ export default class Client {
         });
     }
 
-    send(data) {
+    send(type,payload) {
         return new Promise((resolve, reject) => {
             const requestId = ++this.requestId;
-            data.request_id = requestId;
-
+            const request = { type,  request_id: requestId };
+            request.payload = payload;
             this.pendingRequests[requestId] = resolve;
-            this.socket.send(JSON.stringify(data));
+            console.log("Sending request:", request);
+            this.socket.send(JSON.stringify(request));
         });
     }
 
@@ -62,7 +64,7 @@ export default class Client {
             channel_id: this.channelID,
             user_id: this.userID
         };
-        await this.send(activatePayload).then(console.log);
+        await this.send(MESSAGE_TYPES.ACTIVATE, activatePayload).then(console.log);
     }
 
     async Push(mediaStream) {
@@ -75,6 +77,7 @@ export default class Client {
             connection.onicecandidate = (event) => {
                 if (event.candidate) {
                     console.log("ICE Candidate:", event.candidate);
+                    console.log(event.target)
                 }
             };
 
@@ -86,10 +89,7 @@ export default class Client {
             await connection.setLocalDescription(offer);
             console.log("Generated Offer SDP:", offer.sdp);
 
-            await this.send({
-                type: MESSAGE_TYPES.PUSH,
-                sdp: offer.sdp
-            }).then(async (response) => {
+            await this.send(MESSAGE_TYPES.PUSH,{sdp : offer.sdp}).then(async (response) => {
                 await connection.setRemoteDescription(new RTCSessionDescription({
                     type: 'answer',
                     sdp: response.sdp
@@ -123,10 +123,7 @@ export default class Client {
             await connection.setLocalDescription(offer);
             console.log("Generated Offer SDP:", offer.sdp);
 
-            await this.send({
-                Type: MESSAGE_TYPES.PULL,
-                sdp: offer.sdp
-            }).then(async (response) => {
+            await this.send(MESSAGE_TYPES.PULL,{sdp : offer.sdp}).then(async (response) => {
                 await connection.setRemoteDescription(new RTCSessionDescription({
                     type: 'answer',
                     sdp: response.sdp
