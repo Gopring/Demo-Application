@@ -7,17 +7,44 @@ const MESSAGE_TYPES = {
     FETCH: 'FETCH'
 };
 
+function generateShortUUID(length = 12) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    const array = new Uint8Array(length);
+    window.crypto.getRandomValues(array);
+    for (let i = 0; i < length; i++) {
+        result += chars[array[i] % chars.length];
+    }
+    return result;
+}
+
+
 export default class Client {
-    constructor(serverURL, userID, channelID, video) {
+    constructor(serverURL, userID, channelID,channelKey, video) {
         this.serverURL = serverURL;
         this.userID = userID;
         this.channelID = channelID;
+        this.channelKey = channelKey;
         this.video = video;
         this.socket = null;
-        this.requestId = 0;
-        this.pendingRequests = {};
-        this.messageHandlers = {};
         this.mediaStream = null;
+        this.connections = {};
+        this.controller=(message) => {
+            const data = JSON.parse(message.data);
+            switch (data.type) {
+                case MESSAGE_TYPES.ACTIVATE:
+                    this.ReceiveActivate(data);
+                    break;
+                case MESSAGE_TYPES.PULL:
+                    this.ReceivePull(data);
+                    break;
+                case MESSAGE_TYPES.PUSH:
+                    this.ReceivePush(data);
+                    break;
+                default :
+                    console.log("Received unknown message:", data);
+            }
+        }
     }
 
     async dial() {
@@ -28,58 +55,45 @@ export default class Client {
 
             this.socket.onerror = (err) => reject(`Failed to connect WebSocket: ${err.message}`);
 
-            this.socket.onmessage = (message) => {
-                const data = JSON.parse(message.data);
-                const requestId = data.request_id;
-
-                if (requestId && this.pendingRequests[requestId]) {
-                    this.pendingRequests[requestId](data);
-                    delete this.pendingRequests[requestId];
-                } else {
-                    const type = data.type;
-                    if (this.messageHandlers[type]) {
-                        this.messageHandlers[type](data);
-                    } else {
-                        console.warn("Unhandled message type:", type);
-                    }
-                }
-
-            };
+            this.socket.onmessage = this.controller;
         });
     }
 
-    send(type,payload) {
-        return new Promise((resolve, reject) => {
-            const requestId = ++this.requestId;
-            const request = { type,  request_id: requestId };
-            request.payload = payload;
-            this.pendingRequests[requestId] = resolve;
-            console.log("Sending request:", request);
-            this.socket.send(JSON.stringify(request));
-        });
+    sendToServer(type, payload) {
+        const request = {type : type, payload: payload};
+        console.log("Sending request:", request);
+        this.socket.send(JSON.stringify(request));
     }
 
-    async activate() {
+    async SendActivate() {
         const activatePayload = {
             channel_id: this.channelID,
-            user_id: this.userID
+            channel_key: this.channelKey,
+            client_id: this.userID
         };
-        await this.send(MESSAGE_TYPES.ACTIVATE, activatePayload).then(console.log);
+        this.sendToServer(MESSAGE_TYPES.ACTIVATE, activatePayload);
     }
 
-    async Push(mediaStream) {
+    ReceiveActivate(response) {
+        console.log("Received Activate response:", response);
+    }
+
+    async SendPush(mediaStream) {
         try {
+            console.log("Sending Push...")
             this.video.srcObject = mediaStream;
             const connection = new RTCPeerConnection({
-                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
             });
+            const connectionID = generateShortUUID();
+            this.connections[connectionID] = connection;
 
-            connection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    console.log("ICE Candidate:", event.candidate);
-                    console.log(event.target)
-                }
-            };
+            // connection.onicecandidate = (event) => {
+            //     if (event.candidate) {
+            //         console.log("ICE Candidate:", event.candidate);
+            //         console.log(event.target)
+            //     }
+            // };
 
             mediaStream.getTracks().forEach(track => {
                 connection.addTrack(track, mediaStream);
@@ -87,57 +101,76 @@ export default class Client {
 
             const offer = await connection.createOffer();
             await connection.setLocalDescription(offer);
-            console.log("Generated Offer SDP:", offer.sdp);
+            // console.log("Generated Offer SDP:", offer.sdp);
 
-            await this.send(MESSAGE_TYPES.PUSH,{sdp : offer.sdp}).then(async (response) => {
-                await connection.setRemoteDescription(new RTCSessionDescription({
-                    type: 'answer',
-                    sdp: response.sdp
-                }));
-            })
-            console.log("Push completed");
+             this.sendToServer(MESSAGE_TYPES.PUSH, { sdp: offer.sdp, connection_id: connectionID})
         } catch (error) {
             console.error("Error in Push:", error);
         }
     }
 
-    async Pull() {
+     ReceivePush(data) {
+        const connection = this.connections[data.connection_id];
+        if (connection) {
+            connection.setRemoteDescription(new RTCSessionDescription({
+                type: 'answer',
+                sdp: data.sdp
+            }));
+            console.log("Push completed for connection ID:", data.connection_id)
+        } else {
+            console.error("Connection not found for ID:", data.connection_id);
+        }
+    }
+
+    async SendPull() {
         try {
             const connection = new RTCPeerConnection({
-                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
             });
+            const connectionID = generateShortUUID();
+            this.connections[connectionID] = connection;
             connection.addTransceiver('video');
-            connection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    console.log("ICE Candidate:", event.candidate);
-                }
-            };
+            // connection.onicecandidate = (event) => {
+            //     if (event.candidate) {
+            //         console.log("ICE Candidate:", event.candidate);
+            //     }
+            // };
 
             connection.ontrack = (event) => {
                 this.video.srcObject = event.streams[0];
                 this.video.autoplay = true;
                 this.video.controls = true;
+                this.mediaStream = event.streams[0];
             };
 
             const offer = await connection.createOffer();
             await connection.setLocalDescription(offer);
             console.log("Generated Offer SDP:", offer.sdp);
 
-            await this.send(MESSAGE_TYPES.PULL,{sdp : offer.sdp}).then(async (response) => {
-                await connection.setRemoteDescription(new RTCSessionDescription({
-                    type: 'answer',
-                    sdp: response.sdp
-                }));
-            })
+            await this.sendToServer(MESSAGE_TYPES.PULL, {sdp: offer.sdp,connection_id: connectionID})
+            console.log("Pull sent");
         } catch (error) {
             console.error("Error in Pull:", error);
+        }
+    }
+
+    ReceivePull(data) {
+        const connection = this.connections[data.connection_id];
+        if (connection) {
+            connection.setRemoteDescription(new RTCSessionDescription({
+                type: 'answer',
+                sdp: data.sdp
+            }));
+            console.log("Pull completed for connection ID:", data.connection_id)
+        } else {
+            console.error("Connection not found for ID:", data.connection_id);
         }
     }
 
     async Fetch() {
         try {
             const connection = new RTCPeerConnection({
-                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
             });
 
             connection.addTransceiver('video');
@@ -188,7 +221,7 @@ export default class Client {
                 console.log("Sending SDP with ICE Candidates...");
                 console.log("Final SDP with ICE:", connection.localDescription.sdp);
 
-                await this.send({
+                await this.sendToServer({
                     Type: MESSAGE_TYPES.FETCH,
                     sdp: connection.localDescription.sdp // ICE 정보가 포함된 SDP
                 }).then(async (response) => {
@@ -208,52 +241,9 @@ export default class Client {
 
     async Forward() {
         try {
-            // Pull the stream from the server to consume and watch
-            const connection = new RTCPeerConnection();
-            connection.addTransceiver('video');
-            connection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    console.log("ICE Candidate:", event.candidate);
-                }
-            };
-
-            connection.ontrack = (event) => {
-                this.video.srcObject = event.streams[0];
-                this.video.autoplay = true;
-                this.video.controls = true;
-                // Store the mediaStream for forwarding
-                this.mediaStream = event.streams[0];
-            };
-
-            const offer = await connection.createOffer();
-            await connection.setLocalDescription(offer);
-
-            await this.send({
-                Type: MESSAGE_TYPES.FORWARD,
-                sdp: offer.sdp
-            }).then(async (response) => {
-                await connection.setRemoteDescription(new RTCSessionDescription({
-                    type: 'answer',
-                    sdp: response.sdp
-                }));
-            })
-
-            // Set up handler for 'ARRANGE' messages from the server
-            this.messageHandlers[MESSAGE_TYPES.ARRANGE] = (data) => {
-                this.Arrange(data.sdp);
-            };
-
-            console.log("Forwarder is set up and watching the stream.");
-        } catch (error) {
-            console.error("Error in Forward:", error);
-        }
-    }
-
-    async Arrange(offerSDP) {
-        try {
             // Create a new connection to the fetcher
             const connection = new RTCPeerConnection({
-                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
             });
 
             // Add tracks from the mediaStream to the new connection
@@ -296,7 +286,7 @@ export default class Client {
                 console.log("Sending Answer SDP with ICE Candidates...");
                 console.log("Final Answer SDP with ICE:", connection.localDescription.sdp);
 
-                await this.send({
+                await this.sendToServer({
                     type: MESSAGE_TYPES.ARRANGE,
                     sdp: connection.localDescription.sdp, // ICE 정보 포함
                     user_id: this.userID,
@@ -306,7 +296,7 @@ export default class Client {
                 console.log("Arranged connection with fetcher.");
             };
         } catch (error) {
-            console.error("Error in Arrange:", error);
+            console.error("Error in Forward:", error);
         }
     }
 }

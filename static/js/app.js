@@ -13,11 +13,10 @@ async function initializeClient() {
         if (userID==='') {
             userID=randomUserID();
         }
-        const channelID = document.getElementById('channel_id').value;
         const video= document.getElementById('video');
         const signalServerURL = window.SignalServerURL;
         console.log("SignalServerURL: ", signalServerURL);
-        client = new Client(signalServerURL, userID, channelID, video);
+        client = new Client(signalServerURL, userID, 'channel-id','channel-key', video);
     }
 }
 
@@ -28,18 +27,18 @@ async function getMediaStream() {
 async function init(){
     await initializeClient();
     await client.dial();
-    await client.activate();
+    await client.SendActivate();
     console.log("Client initialized");
 }
 
 document.getElementById('push').addEventListener('click', async () => {
     await init();
     const stream = await getMediaStream();
-    await client.Push(stream);
+    await client.SendPush(stream);
 });
 
 document.getElementById('pull').addEventListener('click', async () => {
     await init();
-    await client.Pull();
+    await client.SendPull();
 });
 
