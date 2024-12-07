@@ -42,6 +42,12 @@ export default class Client {
             case MESSAGE_TYPES.FORWARD:
                 this.ReceiveForward(response);
                 break;
+            case MESSAGE_TYPES.CLEAR:
+                this.ReceiveClear(response);
+                break;
+            case MESSAGE_TYPES.CLOSED:
+                this.ReceiveClosed(response);
+                break;
             default:
                 console.warn("Received unknown message type:", response);
         }
@@ -50,7 +56,7 @@ export default class Client {
     // Generic send
     sendToServer(type, payload) {
         const request = { type, payload };
-        console.log("Sending request:", request);
+        console.log("Sending request:", request.type);
         this.socket.send(JSON.stringify(request));
     }
 
@@ -65,7 +71,7 @@ export default class Client {
     }
 
     ReceiveActivate(response) {
-        console.log("Received Activate response:", response);
+        console.log("Received Activate response:", response.type);
     }
 
     // Push
@@ -109,7 +115,7 @@ export default class Client {
             const offer = await connection.createOffer();
             await connection.setLocalDescription(offer);
 
-            console.log("Generated Offer SDP for Pull:", offer.sdp);
+            console.log("Generated Offer SDP for Pull:");
             await this.sendToServer(MESSAGE_TYPES.PULL, { sdp: offer.sdp, connection_id: connectionID });
             console.log("Pull sent");
         } catch (error) {
@@ -145,6 +151,25 @@ export default class Client {
                 }
             };
 
+            connection.oniceconnectionstatechange = (event) => {
+                console.log("ICE Connection State:", event.target.iceConnectionState);
+                switch (event.target.iceConnectionState) {
+                    case "connected":
+                        console.log("ICE connection is in the completed state.");
+                        this.sendToServer(MESSAGE_TYPES.CONNECTED, { connection_id: connID })
+                        break;
+                    case "failed":
+                        console.error("ICE connection failed. Connection may need to be restarted.");
+                        this.sendToServer(MESSAGE_TYPES.FAILED, { connection_id: connID })
+                        break;
+                    case "disconnected":
+                    case "closed":
+                        console.log("ICE connection has been closed.");
+                        this.sendToServer(MESSAGE_TYPES.DISCONNECTED, { connection_id: connID })
+                        break;
+                }
+            };
+
             const offer = await connection.createOffer();
             await connection.setLocalDescription(offer);
             this.sendToServer(MESSAGE_TYPES.FORWARD, {
@@ -177,6 +202,21 @@ export default class Client {
                 }
             };
 
+            connection.oniceconnectionstatechange = (event) => {
+                console.log("ICE Connection State:", event.target.iceConnectionState);
+                switch (event.target.iceConnectionState) {
+                    case "failed":
+                        console.error("ICE connection failed. Connection may need to be restarted.");
+                        this.sendToServer(MESSAGE_TYPES.FAILED, { connection_id: connID })
+                        break;
+                    case "disconnected":
+                    case "closed":
+                        console.log("ICE connection has been closed.");
+                        this.sendToServer(MESSAGE_TYPES.DISCONNECTED, { connection_id: connID })
+                        break;
+                }
+            };
+
             await setRemoteDescription(connection, data.sdp, 'offer');
             const answer = await connection.createAnswer();
             await connection.setLocalDescription(answer);
@@ -200,16 +240,41 @@ export default class Client {
 
         try {
             if (data.signal_type === 'candidate') {
-                console.log("Received ICE Candidate:", data.signal_data);
+                // console.log("Received ICE Candidate:", data.signal_data);
                 await addIceCandidate(connection, JSON.parse(data.signal_data));
             } else if (data.signal_type === 'answer') {
-                console.log("Received Answer SDP");
+                // console.log("Received Answer SDP");
                 await setRemoteDescription(connection, data.signal_data, 'answer');
             } else {
                 console.warn("Unknown Exchange message type:", data.signal_type);
             }
         } catch (error) {
-            console.error("Error in Exchange:", error);
+            console.error("Error in Signaling:", error);
+        }
+    }
+
+    async ReceiveClear(data) {
+        try{
+            const connection = this.connections[data.connection_id];
+            if (connection) {
+                connection.close();
+                delete this.connections[data.connection_id];
+            }
+        } catch (error) {
+            console.error("Error in Close:", error);
+        }
+    }
+
+    async ReceiveClosed(data) {
+        try{
+            const connection = this.connections[data.connection_id];
+            if (connection) {
+                connection.close();
+                delete this.connections[data.connection_id];
+            }
+            this.SendPull();
+        } catch (error) {
+            console.error("Error in Close:", error);
         }
     }
 }
