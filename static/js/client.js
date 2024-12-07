@@ -28,22 +28,22 @@ export default class Client {
     }
 
     // Centralize message handling
-    handleServerMessage(data) {
-        switch (data.type) {
+    handleServerMessage(response) {
+        switch (response.type) {
             case MESSAGE_TYPES.ACTIVATE:
-                this.ReceiveActivate(data);
+                this.ReceiveActivate(response);
                 break;
-            case MESSAGE_TYPES.EXCHANGE:
-                this.ReceiveExchange(data);
+            case MESSAGE_TYPES.SIGNAL:
+                this.ReceiveSignal(response);
                 break;
             case MESSAGE_TYPES.FETCH:
-                this.ReceiveFetch(data);
+                this.ReceiveFetch(response);
                 break;
             case MESSAGE_TYPES.FORWARD:
-                this.ReceiveForward(data);
+                this.ReceiveForward(response);
                 break;
             default:
-                console.warn("Received unknown message type:", data);
+                console.warn("Received unknown message type:", response);
         }
     }
 
@@ -137,10 +137,10 @@ export default class Client {
 
             connection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    this.sendToServer(MESSAGE_TYPES.EXCHANGE, {
+                    this.sendToServer(MESSAGE_TYPES.SIGNAL, {
                         connection_id: connID,
-                        type: 'candidate',
-                        data: event.candidate
+                        signal_type: 'candidate',
+                        signal_data: JSON.stringify(event.candidate)
                     });
                 }
             };
@@ -149,8 +149,7 @@ export default class Client {
             await connection.setLocalDescription(offer);
             this.sendToServer(MESSAGE_TYPES.FORWARD, {
                 connection_id: connID,
-                type: 'offer',
-                data: offer.sdp
+                sdp: offer.sdp
             });
         } catch (error) {
             console.error("Error in Fetch:", error);
@@ -170,10 +169,10 @@ export default class Client {
 
             connection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    this.sendToServer(MESSAGE_TYPES.EXCHANGE, {
+                    this.sendToServer(MESSAGE_TYPES.SIGNAL, {
                         connection_id: connID,
-                        type: 'candidate',
-                        data: event.candidate
+                        signal_type: 'candidate',
+                        signal_data: JSON.stringify(event.candidate)
                     });
                 }
             };
@@ -182,17 +181,17 @@ export default class Client {
             const answer = await connection.createAnswer();
             await connection.setLocalDescription(answer);
 
-            this.sendToServer(MESSAGE_TYPES.EXCHANGE, {
+            this.sendToServer(MESSAGE_TYPES.SIGNAL, {
                 connection_id: connID,
-                type: 'answer',
-                data: answer.sdp
+                signal_type: 'answer',
+                signal_data: answer.sdp
             });
         } catch (error) {
             console.error("Error in Forward:", error);
         }
     }
 
-    async ReceiveExchange(data) {
+    async ReceiveSignal(data) {
         const connection = this.connections[data.connection_id];
         if (!connection) {
             console.error("Connection not found for ID:", data.connection_id);
@@ -200,14 +199,14 @@ export default class Client {
         }
 
         try {
-            if (data.data_type === 'candidate') {
-                console.log("Received ICE Candidate:", data.data);
-                await addIceCandidate(connection, data.data);
-            } else if (data.data_type === 'answer') {
+            if (data.signal_type === 'candidate') {
+                console.log("Received ICE Candidate:", data.signal_data);
+                await addIceCandidate(connection, JSON.parse(data.signal_data));
+            } else if (data.signal_type === 'answer') {
                 console.log("Received Answer SDP");
-                await setRemoteDescription(connection, data.data, 'answer');
+                await setRemoteDescription(connection, data.signal_data, 'answer');
             } else {
-                console.warn("Unknown Exchange message type:", data.data_type);
+                console.warn("Unknown Exchange message type:", data.signal_type);
             }
         } catch (error) {
             console.error("Error in Exchange:", error);

@@ -3,7 +3,6 @@ export const MESSAGE_TYPES = {
     PULL: 'PULL',
     PUSH: 'PUSH',
     FORWARD: 'FORWARD',
-    ARRANGE: 'ARRANGE',
     FETCH: 'FETCH',
-    EXCHANGE: 'EXCHANGE',
+    SIGNAL: 'SIGNAL',
 };
