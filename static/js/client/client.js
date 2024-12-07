@@ -7,6 +7,18 @@ const MESSAGE_TYPES = {
     FETCH: 'FETCH'
 };
 
+class Message {
+    static requestId = 0; // 전역적으로 증가하는 Request ID
+
+    static create(type, payload = {}) {
+        return {
+            request_id: ++this.requestId,
+            type: type,
+            payload: payload,
+        };
+    }
+}
+
 export default class Client {
     constructor(serverURL, userID, channelID, video) {
         this.serverURL = serverURL;
@@ -24,7 +36,14 @@ export default class Client {
         return new Promise((resolve, reject) => {
             this.socket = new WebSocket(`${this.serverURL}`);
 
-            this.socket.onopen = () => resolve();
+            this.socket.onopen = async () => {
+                try {
+                    await this.activate();
+                    resolve();
+                } catch (err) {
+                    reject(`Failed to activate WebSocket: ${err.message}`);
+                }
+            };
 
             this.socket.onerror = (err) => reject(`Failed to connect WebSocket: ${err.message}`);
 
@@ -43,28 +62,33 @@ export default class Client {
                         console.warn("Unhandled message type:", type);
                     }
                 }
-
             };
         });
     }
 
-    send(type,payload) {
+    send(type, payload) {
         return new Promise((resolve, reject) => {
-            const requestId = ++this.requestId;
-            const request = { type,  request_id: requestId };
-            request.payload = payload;
-            this.pendingRequests[requestId] = resolve;
-            console.log("Sending request:", request);
-            this.socket.send(JSON.stringify(request));
+            const message = Message.create(type, payload);
+    
+            console.log("Sending request:", JSON.stringify(message));
+            this.pendingRequests[message.request_id] = resolve;
+    
+            try {
+                this.socket.send(JSON.stringify(message));
+            } catch (err) {
+                console.error("Failed to send request:", err);
+                reject(err);
+            }
         });
     }
 
+
     async activate() {
-        const activatePayload = {
+        const payload = {
             channel_id: this.channelID,
             user_id: this.userID
         };
-        await this.send(MESSAGE_TYPES.ACTIVATE, activatePayload).then(console.log);
+        await this.send(MESSAGE_TYPES.ACTIVATE, payload).then(console.log);
     }
 
     async Push(mediaStream) {
@@ -90,6 +114,7 @@ export default class Client {
             console.log("Generated Offer SDP:", offer.sdp);
 
             await this.send(MESSAGE_TYPES.PUSH,{sdp : offer.sdp}).then(async (response) => {
+                console.log("Server SDP Answer:", response.sdp); 
                 await connection.setRemoteDescription(new RTCSessionDescription({
                     type: 'answer',
                     sdp: response.sdp
@@ -103,32 +128,44 @@ export default class Client {
 
     async Pull() {
         try {
+            console.log("Pull: Initializing PeerConnection...");
             const connection = new RTCPeerConnection({
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
             });
+            console.log("Pull: Adding Transceiver...");
             connection.addTransceiver('video');
             connection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    console.log("ICE Candidate:", event.candidate);
+                    console.log("Pull: ICE Candidate:", event.candidate);
+                }else {
+                    console.log("Pull: ICE Candidate gathering complete.");
                 }
             };
 
             connection.ontrack = (event) => {
+                console.log("Pull: Received track event:", event);
+                console.log("Pull: Attaching track to video element...");
                 this.video.srcObject = event.streams[0];
                 this.video.autoplay = true;
                 this.video.controls = true;
             };
 
+            console.log("Pull: Creating SDP Offer...");
             const offer = await connection.createOffer();
+            console.log("Pull: Setting local description with Offer SDP...");
             await connection.setLocalDescription(offer);
-            console.log("Generated Offer SDP:", offer.sdp);
+            console.log("Pull: Generated Offer SDP:", offer.sdp);
 
+            console.log("Pull: Sending Offer SDP to server...");
             await this.send(MESSAGE_TYPES.PULL,{sdp : offer.sdp}).then(async (response) => {
+                console.log("Pull: Received Answer SDP from server...", response.sdp);
                 await connection.setRemoteDescription(new RTCSessionDescription({
                     type: 'answer',
                     sdp: response.sdp
                 }));
-            })
+                console.log("Pull: Answer SDP successfully set.");
+            });
+            console.log("Pull: Pull operation completed successfully.");
         } catch (error) {
             console.error("Error in Pull:", error);
         }
