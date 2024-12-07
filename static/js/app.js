@@ -28,7 +28,6 @@ async function getMediaStream() {
 async function init(){
     await initializeClient();
     await client.dial();
-    await client.activate();
     console.log("Client initialized");
 }
 
