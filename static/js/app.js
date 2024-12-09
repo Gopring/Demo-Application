@@ -24,6 +24,13 @@ async function getMediaStream() {
     return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
 }
 
+async function getScreenStream() {
+    return await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false
+    });
+}
+
 async function init(){
     await initializeClient();
     await client.dial();
@@ -36,6 +43,14 @@ document.getElementById('push').addEventListener('click', async () => {
     const stream = await getMediaStream();
     await client.SendPush(stream);
 });
+
+document.getElementById('screen').addEventListener('click', async () => {
+    await init();
+    console.log("Screen sharing");
+    const stream = await getScreenStream();
+    await client.SendPush(stream);
+});
+
 
 document.getElementById('pull').addEventListener('click', async () => {
     await init();
