@@ -334,6 +334,7 @@ export default class Client {
             await connection.setLocalDescription(offer);
             this.sendToServer(MESSAGE_TYPES.CLASSIFY_FORWARD, {
                 connection_id: connID,
+                peer_id: peerID,
                 sdp: offer.sdp
             });
         } catch (error) {
