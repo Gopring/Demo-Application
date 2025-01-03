@@ -36,11 +36,11 @@ export default class Client {
             case MESSAGE_TYPES.SIGNAL:
                 this.ReceiveSignal(response);
                 break;
-            case MESSAGE_TYPES.FETCH:
-                this.ReceiveFetch(response);
-                break;
             case MESSAGE_TYPES.FORWARD:
                 this.ReceiveForward(response);
+                break;
+            case MESSAGE_TYPES.FORWARDING:
+                this.ReceiveForwarding(response);
                 break;
             case MESSAGE_TYPES.CLEAR:
                 this.ReceiveClear(response);
@@ -48,8 +48,8 @@ export default class Client {
             case MESSAGE_TYPES.CLOSED:
                 this.ReceiveClosed(response);
                 break;
-            case MESSAGE_TYPES.CLASSIFIED:
-                this.ReceiveClassified(response);
+            case MESSAGE_TYPES.CLASSIFYING:
+                this.ReceiveClassifying(response);
                 break; 
             case MESSAGE_TYPES.CLASSIFY:
                 this.ReceiveClassify(response);
@@ -130,7 +130,7 @@ export default class Client {
     }
 
     // Fetch
-    async ReceiveFetch(data) {
+    async ReceiveForward(data) {
         try {
             const connID = data.connection_id;
             const connection = createPeerConnection();
@@ -162,7 +162,7 @@ export default class Client {
                 switch (event.target.iceConnectionState) {
                     case "connected":
                         console.log("ICE connection is in the completed state.");
-                        this.sendToServer(MESSAGE_TYPES.CONNECTED, { connection_id: connID })
+                        this.sendToServer(MESSAGE_TYPES.FORWARDED, { connection_id: connID })
                         break;
                     case "failed":
                         console.error("ICE connection failed. Connection may need to be restarted.");
@@ -178,7 +178,7 @@ export default class Client {
 
             const offer = await connection.createOffer();
             await connection.setLocalDescription(offer);
-            this.sendToServer(MESSAGE_TYPES.FORWARD, {
+            this.sendToServer(MESSAGE_TYPES.FORWARDING, {
                 connection_id: connID,
                 sdp: offer.sdp
             });
@@ -188,7 +188,7 @@ export default class Client {
     }
 
     // Forward
-    async ReceiveForward(data) {
+    async ReceiveForwarding(data) {
         try {
             const connID = data.connection_id;
             const connection = createPeerConnection();
@@ -285,7 +285,7 @@ export default class Client {
     }
 
 
-    async ReceiveClassified(data){
+    async ReceiveClassifying(data){
         try {
             const connID = data.connection_id;
             const connection = createPeerConnection();
@@ -293,7 +293,7 @@ export default class Client {
 
             connection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    this.sendToServer(MESSAGE_TYPES.CLASSIFY_SIGNAL, {
+                    this.sendToServer(MESSAGE_TYPES.SIGNAL, {
                         connection_id: connID,
                         signal_type: 'candidate',
                         signal_data: JSON.stringify(event.candidate),
@@ -329,7 +329,7 @@ export default class Client {
 
             const offer = await connection.createOffer();
             await connection.setLocalDescription(offer);
-            this.sendToServer(MESSAGE_TYPES.CLASSIFY, {
+            this.sendToServer(MESSAGE_TYPES.CLASSIFYING, {
                 connection_id: connID,
                 sdp: offer.sdp
             });
