@@ -48,11 +48,11 @@ export default class Client {
             case MESSAGE_TYPES.CLOSED:
                 this.ReceiveClosed(response);
                 break;
-            case MESSAGE_TYPES.CLASSIFY_FETCH:
-                this.ReceiveClassifyFetch(response);
+            case MESSAGE_TYPES.CLASSIFIED:
+                this.ReceiveClassified(response);
                 break; 
-            case MESSAGE_TYPES.CLASSIFY_FORWARD:
-                this.ReceiveClassifyForward(response);
+            case MESSAGE_TYPES.CLASSIFY:
+                this.ReceiveClassify(response);
                 break;
             default:
                 console.warn("Received unknown message type:", response);
@@ -285,10 +285,9 @@ export default class Client {
     }
 
 
-    async ReceiveClassifyFetch(data){
+    async ReceiveClassified(data){
         try {
             const connID = data.connection_id;
-            const peerID = data.peer_id;
             const connection = createPeerConnection();
             this.connections[connID] = connection;
 
@@ -307,18 +306,16 @@ export default class Client {
                 switch (event.target.iceConnectionState) {
                     case "connected":
                         console.log("ICE connection is in the completed state.");
-                        this.sendToServer(MESSAGE_TYPES.CLASSIFY_RESULT, {
+                        this.sendToServer(MESSAGE_TYPES.CLASSIFIED, {
                             connection_id: connID,
-                            peer_id: peerID,
                             channel_id: this.channelID,
                             success: true,
                         });
                         break;
                     case "failed":
                         console.error("ICE connection failed.");
-                        this.sendToServer(MESSAGE_TYPES.CLASSIFY_RESULT, {
+                        this.sendToServer(MESSAGE_TYPES.CLASSIFIED, {
                             connection_id: connID,
-                            peer_id: peerID,
                             channel_id: this.channelID,
                             success: false,
                         });
@@ -332,9 +329,8 @@ export default class Client {
 
             const offer = await connection.createOffer();
             await connection.setLocalDescription(offer);
-            this.sendToServer(MESSAGE_TYPES.CLASSIFY_FORWARD, {
+            this.sendToServer(MESSAGE_TYPES.CLASSIFY, {
                 connection_id: connID,
-                peer_id: peerID,
                 sdp: offer.sdp
             });
         } catch (error) {
@@ -342,16 +338,15 @@ export default class Client {
         }
     }
 
-    async ReceiveClassifyForward(data){
+    async ReceiveClassify(data){
         try {
             const connID = data.connection_id;
-            const peerID = data.peer_id;
             const connection = createPeerConnection();
             this.connections[connID] = connection;
 
             connection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    this.sendToServer(MESSAGE_TYPES.CLASSIFY_SIGNAL, {
+                    this.sendToServer(MESSAGE_TYPES.SIGNAL, {
                         connection_id: connID,
                         signal_type: 'candidate',
                         signal_data: JSON.stringify(event.candidate)
@@ -364,9 +359,8 @@ export default class Client {
                 switch (event.target.iceConnectionState) {
                     case "failed":
                         console.error("ICE connection failed. Connection may need to be restarted.");
-                        this.sendToServer(MESSAGE_TYPES.CLASSIFY_RESULT, {
+                        this.sendToServer(MESSAGE_TYPES.CLASSIFIED, {
                             connection_id: connID,
-                            peer_id: peerID,
                             channel_id: this.channelID,
                             success: false,
                         });
@@ -381,9 +375,8 @@ export default class Client {
             const answer = await connection.createAnswer();
             await connection.setLocalDescription(answer);
 
-            this.sendToServer(MESSAGE_TYPES.CLASSIFY_SIGNAL, {
+            this.sendToServer(MESSAGE_TYPES.SIGNAL, {
                 connection_id: connID,
-                peer_id: peerID,
                 signal_type: 'answer',
                 signal_data: answer.sdp
             });
