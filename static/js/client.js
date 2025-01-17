@@ -48,12 +48,6 @@ export default class Client {
             case MESSAGE_TYPES.CLOSED:
                 this.ReceiveClosed(response);
                 break;
-            case MESSAGE_TYPES.CLASSIFYING:
-                this.ReceiveClassifying(response);
-                break; 
-            case MESSAGE_TYPES.CLASSIFY:
-                this.ReceiveClassify(response);
-                break;
             default:
                 console.warn("Received unknown message type:", response);
         }
@@ -283,106 +277,4 @@ export default class Client {
             console.error("Error in Close:", error);
         }
     }
-
-
-    async ReceiveClassifying(data){
-        try {
-            const connID = data.connection_id;
-            const connection = createPeerConnection();
-            this.connections[connID] = connection;
-
-            connection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    this.sendToServer(MESSAGE_TYPES.SIGNAL, {
-                        connection_id: connID,
-                        signal_type: 'candidate',
-                        signal_data: JSON.stringify(event.candidate),
-                    });
-                }
-            };
-
-            connection.oniceconnectionstatechange = (event) => {
-                console.log("ICE Connection State:", event.target.iceConnectionState);
-                switch (event.target.iceConnectionState) {
-                    case "connected":
-                        console.log("ICE connection is in the completed state.");
-                        this.sendToServer(MESSAGE_TYPES.CLASSIFIED, {
-                            connection_id: connID,
-                            channel_id: this.channelID,
-                            success: true,
-                        });
-                        break;
-                    case "failed":
-                        console.error("ICE connection failed.");
-                        this.sendToServer(MESSAGE_TYPES.CLASSIFIED, {
-                            connection_id: connID,
-                            channel_id: this.channelID,
-                            success: false,
-                        });
-                        break;
-                    case "disconnected":
-                    case "closed":
-                        console.log("ICE connection has been closed.");
-                        break;
-                }
-            };
-
-            const offer = await connection.createOffer();
-            await connection.setLocalDescription(offer);
-            this.sendToServer(MESSAGE_TYPES.CLASSIFYING, {
-                connection_id: connID,
-                sdp: offer.sdp
-            });
-        } catch (error) {
-            console.error("Error in Fetch:", error);
-        }
-    }
-
-    async ReceiveClassify(data){
-        try {
-            const connID = data.connection_id;
-            const connection = createPeerConnection();
-            this.connections[connID] = connection;
-
-            connection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    this.sendToServer(MESSAGE_TYPES.SIGNAL, {
-                        connection_id: connID,
-                        signal_type: 'candidate',
-                        signal_data: JSON.stringify(event.candidate)
-                    });
-                }
-            };
-
-            connection.oniceconnectionstatechange = (event) => {
-                console.log("ICE Connection State:", event.target.iceConnectionState);
-                switch (event.target.iceConnectionState) {
-                    case "failed":
-                        console.error("ICE connection failed. Connection may need to be restarted.");
-                        this.sendToServer(MESSAGE_TYPES.CLASSIFIED, {
-                            connection_id: connID,
-                            channel_id: this.channelID,
-                            success: false,
-                        });
-                        break;
-                    case "disconnected":
-                    case "closed":
-                        break;
-                }
-            };
-
-            await setRemoteDescription(connection, data.sdp, 'offer');
-            const answer = await connection.createAnswer();
-            await connection.setLocalDescription(answer);
-
-            this.sendToServer(MESSAGE_TYPES.SIGNAL, {
-                connection_id: connID,
-                signal_type: 'answer',
-                signal_data: answer.sdp
-            });
-        } catch (error) {
-            console.error("Error in Forward:", error);
-        }
-    }
-
 }
