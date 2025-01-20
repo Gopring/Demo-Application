@@ -1,4 +1,4 @@
-import Client  from './client/client.js';
+import Client  from './client.js';
 
 let client;
 
@@ -13,11 +13,10 @@ async function initializeClient() {
         if (userID==='') {
             userID=randomUserID();
         }
-        const channelID = document.getElementById('channel_id').value;
         const video= document.getElementById('video');
         const signalServerURL = window.SignalServerURL;
         console.log("SignalServerURL: ", signalServerURL);
-        client = new Client(signalServerURL, userID, channelID, video);
+        client = new Client(signalServerURL, userID, 'channel-id','channel-key', video);
     }
 }
 
@@ -25,30 +24,36 @@ async function getMediaStream() {
     return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
 }
 
+async function getScreenStream() {
+    return await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false
+    });
+}
+
 async function init(){
     await initializeClient();
     await client.dial();
-    await client.activate();
+    await client.SendActivate();
     console.log("Client initialized");
 }
 
 document.getElementById('push').addEventListener('click', async () => {
     await init();
     const stream = await getMediaStream();
-    await client.Push(stream);
+    await client.SendPush(stream);
 });
+
+document.getElementById('screen').addEventListener('click', async () => {
+    await init();
+    console.log("Screen sharing");
+    const stream = await getScreenStream();
+    await client.SendPush(stream);
+});
+
 
 document.getElementById('pull').addEventListener('click', async () => {
     await init();
-    await client.Pull();
+    await client.SendPull();
 });
 
-document.getElementById('fetch').addEventListener('click', async () => {
-    await init();
-    await client.Fetch();
-});
-
-document.getElementById('forward').addEventListener('click', async () => {
-    await init();
-    await client.Forward();
-});
