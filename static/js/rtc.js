@@ -1,12 +1,19 @@
 // WebRTC related helper functions to reduce duplication in Client
 
-const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+const ICE_SERVERS = [
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+];
 
 /**
  * Create and return a pre-configured RTCPeerConnection instance
  */
 export function createPeerConnection() {
-    return new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    return new RTCPeerConnection({
+        iceServers: ICE_SERVERS,
+        portRange: { min: 49152, max: 49172 },
+    });
 }
 
 /**

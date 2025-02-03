@@ -240,10 +240,10 @@ export default class Client {
 
         try {
             if (data.signal_type === 'candidate') {
-                // console.log("Received ICE Candidate:", data.signal_data);
+                console.log("Received ICE Candidate:", data.signal_data);
                 await addIceCandidate(connection, JSON.parse(data.signal_data));
             } else if (data.signal_type === 'answer') {
-                // console.log("Received Answer SDP");
+                console.log("Received Answer SDP");
                 await setRemoteDescription(connection, data.signal_data, 'answer');
             } else {
                 console.warn("Unknown Exchange message type:", data.signal_type);
